@@ -194,10 +194,6 @@
     let dragState = null;
     let currentDropIndex = null;
 
-    const imageExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
-
-    pickFolderBtn.addEventListener('click', () => folderInput.click());
-
 modules = [
   { id: crypto.randomUUID(), src: 'brakker/HE 01.png', name: 'HE 01.png' },
   { id: crypto.randomUUID(), src: 'brakker/HE 02.png', name: 'HE 02.png' },
