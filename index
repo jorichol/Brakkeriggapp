@@ -164,12 +164,10 @@
       <li>Trykk på en brakke for å slette den fra riggen.</li>
     </ul>
 
-    <div class="topbar">
-      <button class="btn" id="pickFolderBtn">Velg mappe</button>
-      <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
-      <button class="btn secondary" id="clearRigBtn">Tøm</button>
-      <button class="btn secondary" id="removeLastBtn">Fjern siste</button>
-    </div>
+  <div class="topbar">
+    <button class="btn secondary" id="clearRigBtn">Tøm</button>
+    <button class="btn secondary" id="removeLastBtn">Fjern siste</button>
+  </div>
 
     <div class="panel">
       <div class="controls"></div>
@@ -185,8 +183,6 @@
   </div>
 
   <script>
-    const folderInput = document.getElementById('folderInput');
-    const pickFolderBtn = document.getElementById('pickFolderBtn');
     const clearRigBtn = document.getElementById('clearRigBtn');
     const removeLastBtn = document.getElementById('removeLastBtn');
     const library = document.getElementById('library');
@@ -202,28 +198,15 @@
 
     pickFolderBtn.addEventListener('click', () => folderInput.click());
 
-    folderInput.addEventListener('change', async (event) => {
-      const files = Array.from(event.target.files || []);
-      const imageFiles = files.filter(file => {
-        const ext = file.name.split('.').pop()?.toLowerCase() || '';
-        return imageExtensions.includes(ext);
-      });
+modules = [
+  { id: crypto.randomUUID(), src: 'brakker/HE 01.png', name: 'HE 01.png' },
+  { id: crypto.randomUUID(), src: 'brakker/HE 02.png', name: 'HE 02.png' },
+  { id: crypto.randomUUID(), src: 'brakker/HE 06.png', name: 'HE 06.png' },
+  { id: crypto.randomUUID(), src: 'brakker/HE 07.png', name: 'HE 07.png' },
+  { id: crypto.randomUUID(), src: 'brakker/HE 08.png', name: 'HE 08.png' }
+];
 
-      modules = await Promise.all(imageFiles.map(readFile));
-      renderLibrary();
-    });
-
-    function readFile(file) {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve({
-          id: crypto.randomUUID(),
-          src: reader.result,
-          name: file.name
-        });
-        reader.readAsDataURL(file);
-      });
-    }
+renderLibrary();
 
     function renderLibrary() {
       library.innerHTML = '';
