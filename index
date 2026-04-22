@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brakkerigg</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --border: #cfd6dd;
+      --text: #1f2933;
+      --accent: #1f6feb;
+      --rig-bg: #eef2f6;
+      --module-width: auto;
+      --module-height: 196px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 10px;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 10px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn.secondary {
+      background: white;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .controls {
+      padding: 10px;
+    }
+
+    .rig-zone {
+      background: var(--rig-bg);
+      border: 2px dashed #98a2b3;
+      min-height: calc(var(--module-height) + 4px);
+      overflow-x: auto;
+      padding: 0;
+    }
+
+    .rig-row {
+      display: inline-flex;
+      gap: 0;
+      min-height: var(--module-height);
+      align-items: stretch;
+      white-space: nowrap;
+    }
+
+    .library {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5cm;
+      padding: 10px;
+      align-items: flex-start;
+    }
+
+    .module-card,
+    .rig-module {
+      height: var(--module-height);
+      overflow: hidden;
+      flex: 0 0 auto;
+      background: transparent;
+      margin: 0;
+      padding: 0;
+      line-height: 0;
+    }
+
+    .module-card {
+      cursor: grab;
+    }
+
+    .rig-module {
+      cursor: grab;
+      position: relative;
+    }
+
+    .module-card img,
+    .rig-module img {
+      display: block;
+      height: 100%;
+      width: auto;
+      max-width: none;
+      object-fit: contain;
+      background: transparent;
+      margin: 0;
+      padding: 0;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .rig-module.dragging {
+      opacity: 0.45;
+    }
+
+    .rig-drop-marker {
+      width: 10px;
+      height: var(--module-height);
+      background: rgba(31, 111, 235, 0.18);
+      border-left: 3px solid var(--accent);
+      border-right: 3px solid var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .rig-slot {
+      width: 0;
+      height: var(--module-height);
+      flex: 0 0 0;
+      background: transparent;
+    }
+
+    .rig-slot.active {
+      background: rgba(31, 111, 235, 0.18);
+      border-left: 3px solid var(--accent);
+      border-right: 3px solid var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Sett sammen din brakkerigg</h1>
+    <ul style="margin:6px 0 10px 18px; padding:0;">
+      <li>Trekk brakker fra oversikten nedenfor.</li>
+      <li>Trekk og slipp for å endre rekkefølge i riggen.</li>
+      <li>Trykk på en brakke for å slette den fra riggen.</li>
+    </ul>
+
+    <div class="topbar">
+      <button class="btn" id="pickFolderBtn">Velg mappe</button>
+      <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
+      <button class="btn secondary" id="clearRigBtn">Tøm</button>
+      <button class="btn secondary" id="removeLastBtn">Fjern siste</button>
+    </div>
+
+    <div class="panel">
+      <div class="controls"></div>
+      <div class="rig-zone" id="rigZone">
+        <div class="rig-row" id="rigRow"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="padding:10px 10px 0 10px; font-weight:600;">Brakkeoversikt</div>
+      <div class="library" id="library"></div>
+    </div>
+  </div>
+
+  <script>
+    const folderInput = document.getElementById('folderInput');
+    const pickFolderBtn = document.getElementById('pickFolderBtn');
+    const clearRigBtn = document.getElementById('clearRigBtn');
+    const removeLastBtn = document.getElementById('removeLastBtn');
+    const library = document.getElementById('library');
+    const rigZone = document.getElementById('rigZone');
+    const rigRow = document.getElementById('rigRow');
+
+    let modules = [];
+    let rigModules = [];
+    let dragState = null;
+    let currentDropIndex = null;
+
+    const imageExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
+
+    pickFolderBtn.addEventListener('click', () => folderInput.click());
+
+    folderInput.addEventListener('change', async (event) => {
+      const files = Array.from(event.target.files || []);
+      const imageFiles = files.filter(file => {
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        return imageExtensions.includes(ext);
+      });
+
+      modules = await Promise.all(imageFiles.map(readFile));
+      renderLibrary();
+    });
+
+    function readFile(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({
+          id: crypto.randomUUID(),
+          src: reader.result,
+          name: file.name
+        });
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function renderLibrary() {
+      library.innerHTML = '';
+
+      modules.forEach(module => {
+        const card = document.createElement('div');
+        card.className = 'module-card';
+        card.draggable = true;
+        card.dataset.id = module.id;
+
+        card.addEventListener('dragstart', (e) => {
+          dragState = { type: 'library', moduleId: module.id };
+          e.dataTransfer.setData('text/plain', module.id);
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+
+        card.addEventListener('dragend', () => {
+          dragState = null;
+          clearActiveSlots();
+        });
+
+        const img = document.createElement('img');
+        img.src = module.src;
+        img.alt = module.name || '';
+
+        card.appendChild(img);
+        library.appendChild(card);
+      });
+    }
+
+    function createSlot(index) {
+      const slot = document.createElement('div');
+      slot.className = 'rig-slot';
+      slot.dataset.index = String(index);
+
+      slot.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!dragState) return;
+        e.dataTransfer.dropEffect = dragState.type === 'library' ? 'copy' : 'move';
+        currentDropIndex = index;
+        highlightSlot(index);
+      });
+
+      slot.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (!dragState) return;
+        currentDropIndex = index;
+        highlightSlot(index);
+      });
+
+      slot.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (!dragState) return;
+        applyDrop(index);
+      });
+
+      return slot;
+    }
+
+    function renderRig() {
+      rigRow.innerHTML = '';
+
+      for (let i = 0; i <= rigModules.length; i++) {
+        rigRow.appendChild(createSlot(i));
+
+        if (i === rigModules.length) continue;
+
+        const item = rigModules[i];
+        const div = document.createElement('div');
+        div.className = 'rig-module';
+        div.draggable = true;
+        div.dataset.instanceId = item.instanceId;
+
+        div.addEventListener('dragstart', (e) => {
+          dragState = { type: 'rig', instanceId: item.instanceId };
+          e.dataTransfer.setData('text/plain', item.instanceId);
+          e.dataTransfer.effectAllowed = 'move';
+          div.classList.add('dragging');
+        });
+
+        div.addEventListener('dragend', () => {
+          dragState = null;
+          clearActiveSlots();
+        });
+
+        div.addEventListener('click', () => {
+          rigModules = rigModules.filter(x => x.instanceId !== item.instanceId);
+          renderRig();
+        });
+
+        const img = document.createElement('img');
+        img.src = item.src;
+        img.alt = item.name || '';
+
+        div.appendChild(img);
+        rigRow.appendChild(div);
+      }
+
+      if (Number.isInteger(currentDropIndex)) {
+        highlightSlot(currentDropIndex);
+      }
+    }
+
+    function clearActiveSlots() {
+      currentDropIndex = null;
+      rigRow.querySelectorAll('.rig-slot').forEach(slot => slot.classList.remove('active'));
+    }
+
+    function highlightSlot(index) {
+      rigRow.querySelectorAll('.rig-slot').forEach(slot => {
+        slot.classList.toggle('active', Number(slot.dataset.index) === index);
+      });
+    }
+
+    function getDropIndexFromPointer(clientX) {
+      const items = [...rigRow.querySelectorAll('.rig-module')];
+      if (!items.length) return 0;
+
+      for (let i = 0; i < items.length; i++) {
+        const rect = items[i].getBoundingClientRect();
+        const midpoint = rect.left + rect.width / 2;
+        if (clientX < midpoint) return i;
+      }
+
+      return items.length;
+    }
+
+    function insertFromLibrary(moduleId, index) {
+      const module = modules.find(m => m.id === moduleId);
+      if (!module) return;
+
+      rigModules.splice(index, 0, {
+        instanceId: crypto.randomUUID(),
+        moduleId: module.id,
+        src: module.src,
+        name: module.name
+      });
+    }
+
+    function moveInsideRig(instanceId, targetIndex) {
+      const fromIndex = rigModules.findIndex(x => x.instanceId === instanceId);
+      if (fromIndex === -1) return;
+
+      const [item] = rigModules.splice(fromIndex, 1);
+      if (fromIndex < targetIndex) targetIndex -= 1;
+      rigModules.splice(targetIndex, 0, item);
+    }
+
+    function applyDrop(dropIndex) {
+      if (!dragState) return;
+
+      if (dragState.type === 'library') {
+        insertFromLibrary(dragState.moduleId, dropIndex);
+      } else if (dragState.type === 'rig') {
+        moveInsideRig(dragState.instanceId, dropIndex);
+      }
+
+      dragState = null;
+      clearActiveSlots();
+      renderRig();
+    }
+
+    rigZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!dragState) return;
+      currentDropIndex = getDropIndexFromPointer(e.clientX);
+      highlightSlot(currentDropIndex);
+    });
+
+    rigZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (!dragState) return;
+      applyDrop(getDropIndexFromPointer(e.clientX));
+    });
+
+    rigZone.addEventListener('dragleave', (e) => {
+      if (!rigZone.contains(e.relatedTarget)) {
+        clearActiveSlots();
+      }
+    });
+
+    clearRigBtn.addEventListener('click', () => {
+      rigModules = [];
+      clearActiveSlots();
+      renderRig();
+    });
+
+    removeLastBtn.addEventListener('click', () => {
+      rigModules.pop();
+      clearActiveSlots();
+      renderRig();
+    });
+
+    renderRig();
+  </script>
+</body>
+</html>
